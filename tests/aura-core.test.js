@@ -80,3 +80,41 @@ test('currentStreak: 0 if the streak is broken (not today, not yesterday)', () =
   assert.equal(core.currentStreak({ count: 9, lastCompletedDate: '2026-06-05' }, '2026-06-05'), 9);
   assert.equal(core.currentStreak({ count: 0, lastCompletedDate: null }, '2026-06-05'), 0);
 });
+
+test('freshState builds a valid empty save with four branches and seed quests', () => {
+  const s = core.freshState('2026-06-05');
+  assert.equal(s.version, 1);
+  assert.equal(s.player.totalAura, 0);
+  assert.equal(s.player.rank, 'Dormant');
+  assert.deepEqual(Object.keys(s.branches), core.BRANCHES);
+  assert.equal(s.branches.Body.aura, 0);
+  assert.equal(s.today.date, '2026-06-05');
+  assert.deepEqual(s.today.completedQuestIds, []);
+  assert.equal(s.today.perfectAwarded, false);
+  assert.ok(s.quests.length > 0, 'ships with seed quests');
+  assert.ok(s.quests.every(q => core.BRANCHES.includes(q.branch)));
+});
+
+test('rolloverIfNewDay: same day is a no-op', () => {
+  const s = core.freshState('2026-06-05');
+  s.today.completedQuestIds = ['x'];
+  const out = core.rolloverIfNewDay(s, '2026-06-05');
+  assert.deepEqual(out.today.completedQuestIds, ['x']);
+});
+
+test('rolloverIfNewDay: a new day clears completions and resets perfectAwarded', () => {
+  const s = core.freshState('2026-06-05');
+  s.today.completedQuestIds = ['x', 'y'];
+  s.today.perfectAwarded = true;
+  const out = core.rolloverIfNewDay(s, '2026-06-06');
+  assert.equal(out.today.date, '2026-06-06');
+  assert.deepEqual(out.today.completedQuestIds, []);
+  assert.equal(out.today.perfectAwarded, false);
+});
+
+test('rolloverIfNewDay: completed custom quests are not carried as active', () => {
+  const s = core.freshState('2026-06-05');
+  s.quests.push({ id: 'c1', name: 'Mix track 3', branch: 'Craft', difficulty: 'epic', type: 'custom', archived: true });
+  const out = core.rolloverIfNewDay(s, '2026-06-06');
+  assert.ok(!out.quests.find(q => q.id === 'c1'), 'archived custom quest is pruned on rollover');
+});

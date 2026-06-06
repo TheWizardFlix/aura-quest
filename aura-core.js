@@ -61,5 +61,57 @@
     return 0;
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak };
+  let _idCounter = 0;
+  function makeId() {
+    _idCounter += 1;
+    return 'q' + Date.now().toString(36) + '_' + _idCounter;
+  }
+
+  const SEED_QUESTS = [
+    { name: 'Morning run', branch: 'Body', difficulty: 'solid', type: 'daily' },
+    { name: 'Eat clean today', branch: 'Body', difficulty: 'quick', type: 'daily' },
+    { name: 'Study 1 hour', branch: 'Mind', difficulty: 'solid', type: 'daily' },
+    { name: 'Read 15 minutes', branch: 'Mind', difficulty: 'quick', type: 'daily' },
+    { name: 'Album session', branch: 'Craft', difficulty: 'solid', type: 'daily' },
+    { name: 'Engineering deep work', branch: 'Craft', difficulty: 'epic', type: 'daily' },
+    { name: 'Meditate / journal', branch: 'Spirit', difficulty: 'quick', type: 'daily' },
+  ];
+
+  function freshState(today) {
+    const branches = {};
+    for (const b of BRANCHES) branches[b] = { aura: 0, level: 1 };
+    return {
+      version: CORE_VERSION,
+      player: {
+        totalAura: 0,
+        rank: 'Dormant',
+        createdAt: today,
+        lastActiveDate: today,
+        streak: { count: 0, lastCompletedDate: null },
+      },
+      branches,
+      quests: SEED_QUESTS.map(q => ({ id: makeId(), archived: false, ...q })),
+      today: { date: today, completedQuestIds: [], perfectAwarded: false },
+      history: [],
+    };
+  }
+
+  function rolloverIfNewDay(state, today) {
+    if (state.today.date === today) return state;
+    const history = state.history.concat([{
+      date: state.today.date,
+      completedCount: state.today.completedQuestIds.length,
+      perfectDay: state.today.perfectAwarded,
+    }]);
+    return {
+      ...state,
+      player: { ...state.player, lastActiveDate: today },
+      // drop finished one-off custom quests so they don't linger
+      quests: state.quests.filter(q => !(q.type === 'custom' && q.archived)),
+      today: { date: today, completedQuestIds: [], perfectAwarded: false },
+      history,
+    };
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId };
 });
