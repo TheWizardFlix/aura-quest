@@ -37,3 +37,19 @@ test('addDays shifts a yyyy-mm-dd string and handles month/year rollover', () =>
   assert.equal(core.addDays('2026-03-01', -1), '2026-02-28');
   assert.equal(core.addDays('2026-12-31', 1), '2027-01-01');
 });
+
+test('streakMultiplier is 1 + 0.05/day, capped at 2.0', () => {
+  assert.equal(core.streakMultiplier(0), 1.0);
+  assert.equal(core.streakMultiplier(1), 1.05);
+  assert.equal(core.streakMultiplier(10), 1.5);
+  assert.equal(core.streakMultiplier(20), 2.0);
+  assert.equal(core.streakMultiplier(50), 2.0); // capped
+});
+
+test('auraForQuest = round(base * streak multiplier)', () => {
+  assert.equal(core.auraForQuest('quick', 0), 10);
+  assert.equal(core.auraForQuest('solid', 0), 25);
+  assert.equal(core.auraForQuest('epic', 0), 60);
+  assert.equal(core.auraForQuest('solid', 10), 38); // round(25 * 1.5)
+  assert.equal(core.auraForQuest('epic', 20), 120); // 60 * 2.0
+});

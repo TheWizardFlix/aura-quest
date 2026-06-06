@@ -36,5 +36,14 @@
     return dateStr(date);
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays };
+  function streakMultiplier(streakDays) {
+    return Math.min(2.0, 1 + 0.05 * streakDays);
+  }
+
+  function auraForQuest(difficulty, streakDays) {
+    const base = DIFFICULTY_AURA[difficulty];
+    return Math.round(base * streakMultiplier(streakDays));
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest };
 });
