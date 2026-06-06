@@ -178,5 +178,60 @@
     return state.quests.filter(q => q.type === 'daily' || !q.archived);
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId, completeQuest, addQuest, removeQuest, activeQuests };
+  function starCountFor(branchAura) {
+    return Math.max(1, 1 + Math.floor(branchAura / 50));
+  }
+
+  // Deterministic pseudo-random so a branch's star layout is stable across renders.
+  function seeded(n) {
+    const x = Math.sin(n * 99.13) * 10000;
+    return x - Math.floor(x);
+  }
+
+  function buildConstellationSVG(state) {
+    const W = 800, H = 460;
+    // Four branch anchors across the canvas.
+    const anchors = {
+      Body:   { x: 0.22 * W, y: 0.32 * H, hue: 0 },     // red-ish
+      Mind:   { x: 0.74 * W, y: 0.28 * H, hue: 210 },   // blue
+      Craft:  { x: 0.30 * W, y: 0.74 * H, hue: 280 },   // violet
+      Spirit: { x: 0.78 * W, y: 0.72 * H, hue: 140 },   // green
+    };
+    let stars = '';
+    let links = '';
+    let labels = '';
+
+    BRANCHES.forEach((branch, bi) => {
+      const a = anchors[branch];
+      const count = starCountFor(state.branches[branch].aura);
+      const bright = Math.min(1, 0.4 + state.branches[branch].aura / 1500);
+      const pts = [];
+      for (let i = 0; i < count; i++) {
+        const ang = seeded(bi * 7 + i) * Math.PI * 2;
+        const rad = 12 + seeded(bi * 13 + i) * 70;
+        const x = a.x + Math.cos(ang) * rad;
+        const y = a.y + Math.sin(ang) * rad;
+        pts.push({ x, y });
+        const r = 2 + seeded(bi + i) * 2.2;
+        stars += `<circle class="star" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" `
+          + `fill="hsl(${a.hue} 90% 80%)" opacity="${bright.toFixed(2)}">`
+          + `<animate attributeName="opacity" values="${bright.toFixed(2)};${(bright*0.5).toFixed(2)};${bright.toFixed(2)}" `
+          + `dur="${(2 + seeded(i+bi)*2).toFixed(1)}s" repeatCount="indefinite"/></circle>`;
+      }
+      // link stars within the branch into a constellation path
+      for (let i = 1; i < pts.length; i++) {
+        links += `<line class="link" x1="${pts[i-1].x.toFixed(1)}" y1="${pts[i-1].y.toFixed(1)}" `
+          + `x2="${pts[i].x.toFixed(1)}" y2="${pts[i].y.toFixed(1)}" stroke="hsl(${a.hue} 80% 70%)" `
+          + `stroke-opacity="0.25" stroke-width="1"/>`;
+      }
+      labels += `<text class="branch-label" x="${a.x.toFixed(0)}" y="${(a.y - 86).toFixed(0)}" `
+        + `text-anchor="middle" fill="hsl(${a.hue} 70% 75%)" font-size="13" `
+        + `letter-spacing="2">${branch} · ${state.branches[branch].aura}</text>`;
+    });
+
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" `
+      + `xmlns="http://www.w3.org/2000/svg" class="constellation">${links}${stars}${labels}</svg>`;
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId, completeQuest, addQuest, removeQuest, activeQuests, starCountFor, buildConstellationSVG };
 });

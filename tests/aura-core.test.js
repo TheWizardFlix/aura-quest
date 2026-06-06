@@ -212,3 +212,26 @@ test('activeQuests returns daily quests plus non-archived custom quests', () => 
   assert.ok(!active.find(q => q.id === id), 'archived custom quest is hidden');
   assert.ok(active.find(q => q.type === 'daily'), 'daily quests still shown');
 });
+
+test('starCountFor grows one star per 50 aura, minimum 1', () => {
+  assert.equal(core.starCountFor(0), 1);
+  assert.equal(core.starCountFor(49), 1);
+  assert.equal(core.starCountFor(50), 2);
+  assert.equal(core.starCountFor(125), 3);
+});
+
+test('buildConstellationSVG returns an svg containing all four branch labels', () => {
+  const s = core.freshState('2026-06-05');
+  const svg = core.buildConstellationSVG(s);
+  assert.match(svg, /^<svg[\s\S]*<\/svg>$/);
+  for (const b of core.BRANCHES) assert.ok(svg.includes(b), `mentions ${b}`);
+});
+
+test('buildConstellationSVG draws more stars as a branch gains aura', () => {
+  const lo = core.buildConstellationSVG(core.freshState('2026-06-05'));
+  const hi = core.freshState('2026-06-05');
+  hi.branches.Craft.aura = 300; // 7 stars
+  const hiSvg = core.buildConstellationSVG(hi);
+  const count = (str) => (str.match(/class="star"/g) || []).length;
+  assert.ok(count(hiSvg) > count(lo), 'more aura => more stars');
+});
