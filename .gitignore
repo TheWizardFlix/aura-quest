@@ -1,2 +1,4 @@
 .superpowers/
+.planning/
+.playwright-mcp/
 node_modules/
