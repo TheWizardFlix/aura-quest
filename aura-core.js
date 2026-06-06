@@ -40,6 +40,8 @@
     return Math.min(2.0, 1 + 0.05 * streakDays);
   }
 
+  // Multiplier uses the POST-completion streak count, so the first completion of a
+  // fresh streak is streak day 1 => x1.05 (not x1.0).
   function auraForQuest(difficulty, streakDays) {
     const base = DIFFICULTY_AURA[difficulty];
     return Math.round(base * streakMultiplier(streakDays));
@@ -113,5 +115,55 @@
     };
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId };
+  function completeQuest(state, questId, today) {
+    if (state.today.completedQuestIds.includes(questId)) return state;
+    const quest = state.quests.find(q => q.id === questId);
+    if (!quest) return state;
+
+    const newStreak = updateStreak(state.player.streak, today);
+    const earned = auraForQuest(quest.difficulty, newStreak.count);
+
+    const completedQuestIds = state.today.completedQuestIds.concat([questId]);
+
+    // Perfect Day: every daily quest completed, awarded at most once per day.
+    const dailyIds = state.quests.filter(q => q.type === 'daily').map(q => q.id);
+    const allDailyDone = dailyIds.length > 0 && dailyIds.every(id => completedQuestIds.includes(id));
+    const perfectBonus = (allDailyDone && !state.today.perfectAwarded) ? PERFECT_DAY_BONUS : 0;
+
+    const totalAura = state.player.totalAura + earned + perfectBonus;
+    const prevRank = state.player.rank;
+    const rank = resolveRank(totalAura);
+
+    const branches = { ...state.branches };
+    branches[quest.branch] = {
+      ...branches[quest.branch],
+      aura: branches[quest.branch].aura + earned,
+    };
+
+    const quests = state.quests.map(q =>
+      (q.id === questId && q.type === 'custom') ? { ...q, archived: true } : q
+    );
+
+    return {
+      ...state,
+      player: { ...state.player, totalAura, rank, streak: newStreak, lastActiveDate: today },
+      branches,
+      quests,
+      today: {
+        ...state.today,
+        completedQuestIds,
+        perfectAwarded: state.today.perfectAwarded || perfectBonus > 0,
+      },
+      lastEarned: {
+        questId,
+        branch: quest.branch,
+        amount: earned,
+        perfectBonus,
+        rankedUp: rank !== prevRank,
+        rank,
+      },
+    };
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId, completeQuest };
 });

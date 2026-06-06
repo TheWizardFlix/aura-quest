@@ -118,3 +118,69 @@ test('rolloverIfNewDay: completed custom quests are not carried as active', () =
   const out = core.rolloverIfNewDay(s, '2026-06-06');
   assert.ok(!out.quests.find(q => q.id === 'c1'), 'archived custom quest is pruned on rollover');
 });
+
+function stateWith(quests, today = '2026-06-05') {
+  const s = core.freshState(today);
+  s.quests = quests.map(q => ({ id: q.id, archived: false, ...q }));
+  return s;
+}
+
+test('completeQuest adds aura to branch and total, marks done, sets streak to 1', () => {
+  const s = stateWith([
+    { id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily' },
+    { id: 'b', name: 'Study', branch: 'Mind', difficulty: 'solid', type: 'daily' }, // 2nd daily so Perfect Day does NOT fire here
+  ]);
+  const out = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(out.player.streak.count, 1);
+  assert.equal(out.lastEarned.amount, 26);   // round(25 * 1.05), day-1 streak multiplier
+  assert.equal(out.player.totalAura, 26);
+  assert.equal(out.branches.Body.aura, 26);
+  assert.deepEqual(out.today.completedQuestIds, ['a']);
+  assert.equal(out.today.perfectAwarded, false);
+});
+
+test('completeQuest is idempotent — completing the same quest twice does nothing extra', () => {
+  const s = stateWith([
+    { id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily' },
+    { id: 'b', name: 'Study', branch: 'Mind', difficulty: 'solid', type: 'daily' },
+  ]);
+  const once = core.completeQuest(s, 'a', '2026-06-05');
+  const twice = core.completeQuest(once, 'a', '2026-06-05');
+  assert.equal(twice.player.totalAura, 26);
+  assert.deepEqual(twice.today.completedQuestIds, ['a']);
+});
+
+test('completeQuest awards the Perfect Day bonus once when all dailies are done', () => {
+  const s = stateWith([
+    { id: 'a', name: 'Run', branch: 'Body', difficulty: 'quick', type: 'daily' },   // round(10*1.05)=11
+    { id: 'b', name: 'Study', branch: 'Mind', difficulty: 'quick', type: 'daily' },  // round(10*1.05)=11
+  ]);
+  const afterA = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(afterA.today.perfectAwarded, false);
+  const afterB = core.completeQuest(afterA, 'b', '2026-06-05');
+  // 11 + 11 + 50 perfect bonus = 72
+  assert.equal(afterB.player.totalAura, 72);
+  assert.equal(afterB.today.perfectAwarded, true);
+  assert.equal(afterB.lastEarned.perfectBonus, 50);
+});
+
+test('completeQuest archives a finished custom quest', () => {
+  const s = stateWith([{ id: 'c', name: 'Mix track', branch: 'Craft', difficulty: 'epic', type: 'custom' }]);
+  const out = core.completeQuest(s, 'c', '2026-06-05');
+  assert.equal(out.quests.find(q => q.id === 'c').archived, true);
+});
+
+test('completeQuest updates rank when crossing a threshold', () => {
+  const s = stateWith([{ id: 'a', name: 'Epic', branch: 'Craft', difficulty: 'epic', type: 'custom' }]);
+  s.player.totalAura = 480;
+  const out = core.completeQuest(s, 'a', '2026-06-05'); // +60 -> 540
+  assert.equal(out.player.rank, 'Awakening');
+  assert.equal(out.lastEarned.rankedUp, true);
+});
+
+test('completeQuest applies the streak multiplier from the post-completion streak', () => {
+  const s = stateWith([{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily' }]);
+  s.player.streak = { count: 9, lastCompletedDate: '2026-06-04' }; // -> becomes 10 today, x1.5
+  const out = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(out.lastEarned.amount, 38); // round(25 * 1.5)
+});
