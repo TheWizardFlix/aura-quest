@@ -1,6 +1,6 @@
 // service-worker.js — offline shell for the Aura Quest PWA.
 // Bump CACHE on every release so clients pull fresh assets.
-const CACHE = 'aura-quest-v2';
+const CACHE = 'aura-quest-v2.1';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,8 @@ const ASSETS = [
   './store.js',
   './manifest.json',
   './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
