@@ -165,5 +165,18 @@
     };
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId, completeQuest };
+  function addQuest(state, { name, branch, difficulty, type }) {
+    const quest = { id: makeId(), name, branch, difficulty, type, archived: false };
+    return { ...state, quests: state.quests.concat([quest]) };
+  }
+
+  function removeQuest(state, questId) {
+    return { ...state, quests: state.quests.filter(q => q.id !== questId) };
+  }
+
+  function activeQuests(state) {
+    return state.quests.filter(q => q.type === 'daily' || !q.archived);
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak, freshState, rolloverIfNewDay, makeId, completeQuest, addQuest, removeQuest, activeQuests };
 });

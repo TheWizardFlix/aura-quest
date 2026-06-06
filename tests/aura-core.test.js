@@ -184,3 +184,31 @@ test('completeQuest applies the streak multiplier from the post-completion strea
   const out = core.completeQuest(s, 'a', '2026-06-05');
   assert.equal(out.lastEarned.amount, 38); // round(25 * 1.5)
 });
+
+test('addQuest appends a quest with a generated id', () => {
+  const s = core.freshState('2026-06-05');
+  const before = s.quests.length;
+  const out = core.addQuest(s, { name: 'Mix track 3', branch: 'Craft', difficulty: 'epic', type: 'custom' });
+  assert.equal(out.quests.length, before + 1);
+  const added = out.quests[out.quests.length - 1];
+  assert.ok(added.id);
+  assert.equal(added.name, 'Mix track 3');
+  assert.equal(added.archived, false);
+});
+
+test('removeQuest deletes by id', () => {
+  const s = core.freshState('2026-06-05');
+  const id = s.quests[0].id;
+  const out = core.removeQuest(s, id);
+  assert.ok(!out.quests.find(q => q.id === id));
+});
+
+test('activeQuests returns daily quests plus non-archived custom quests', () => {
+  const s = core.freshState('2026-06-05');
+  const withCustom = core.addQuest(s, { name: 'One off', branch: 'Mind', difficulty: 'quick', type: 'custom' });
+  const id = withCustom.quests[withCustom.quests.length - 1].id;
+  const done = core.completeQuest(withCustom, id, '2026-06-05'); // archives the custom quest
+  const active = core.activeQuests(done);
+  assert.ok(!active.find(q => q.id === id), 'archived custom quest is hidden');
+  assert.ok(active.find(q => q.type === 'daily'), 'daily quests still shown');
+});
