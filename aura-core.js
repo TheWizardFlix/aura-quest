@@ -226,7 +226,7 @@
       }
       labels += `<text class="branch-label" x="${a.x.toFixed(0)}" y="${(a.y - 86).toFixed(0)}" `
         + `text-anchor="middle" fill="hsl(${a.hue} 70% 75%)" font-size="13" `
-        + `letter-spacing="2">${branch} · ${state.branches[branch].aura}</text>`;
+        + `letter-spacing="2">${branch.toUpperCase()} · ${state.branches[branch].aura}</text>`;
     });
 
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" `

@@ -224,7 +224,8 @@ test('buildConstellationSVG returns an svg containing all four branch labels', (
   const s = core.freshState('2026-06-05');
   const svg = core.buildConstellationSVG(s);
   assert.match(svg, /^<svg[\s\S]*<\/svg>$/);
-  for (const b of core.BRANCHES) assert.ok(svg.includes(b), `mentions ${b}`);
+  // Labels are uppercased for the HUD look, so match case-insensitively.
+  for (const b of core.BRANCHES) assert.ok(svg.toUpperCase().includes(b.toUpperCase()), `mentions ${b}`);
 });
 
 test('buildConstellationSVG draws more stars as a branch gains aura', () => {
