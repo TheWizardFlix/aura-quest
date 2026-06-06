@@ -399,7 +399,7 @@
 
   // ---- Manage dailies (remove) ----
   const manageDialog = el('manageDialog');
-  el('manageBtn').addEventListener('click', () => {
+  function renderManageList() {
     const list = el('manageList');
     list.innerHTML = '';
     state.quests.filter(q => q.type === 'daily').forEach(q => {
@@ -414,12 +414,14 @@
         state = core.removeQuest(state, q.id);
         store.save(state);
         render();
-        el('manageBtn').click(); // refresh list
-        manageDialog.close();
+        renderManageList(); // refresh list in place; keep dialog open
       });
       row.appendChild(del);
       list.appendChild(row);
     });
+  }
+  el('manageBtn').addEventListener('click', () => {
+    renderManageList();
     manageDialog.showModal();
   });
   el('manageClose').addEventListener('click', () => manageDialog.close());
