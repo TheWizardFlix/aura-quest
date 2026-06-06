@@ -206,6 +206,59 @@
       <button class="action" id="manageBtn">✎ Manage dailies</button>
       <button class="action" id="backupBtn">☁ Backup / restore</button>
     </div>
+
+    <dialog id="questDialog">
+      <form method="dialog" class="dlg-body">
+        <h3 id="questDlgTitle">Add a quest</h3>
+        <label class="field">Name
+          <input id="qName" required maxlength="60" placeholder="e.g. Finish mixing track 3">
+        </label>
+        <label class="field">Branch
+          <select id="qBranch">
+            <option>Body</option><option>Mind</option><option>Craft</option><option>Spirit</option>
+          </select>
+        </label>
+        <label class="field">Difficulty
+          <select id="qDiff">
+            <option value="quick">⚡ Quick (10)</option>
+            <option value="solid" selected>🔥 Solid (25)</option>
+            <option value="epic">💎 Epic (60)</option>
+          </select>
+        </label>
+        <label class="field">Type
+          <select id="qType">
+            <option value="custom">One-off (custom)</option>
+            <option value="daily">Daily (recurring)</option>
+          </select>
+        </label>
+        <div class="row">
+          <button class="action" value="cancel">Cancel</button>
+          <button class="action" id="qSave" value="save">Save quest</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="manageDialog">
+      <div class="dlg-body">
+        <h3>Manage daily quests</h3>
+        <div id="manageList" class="quests"></div>
+        <div class="row"><button class="action" id="manageClose">Done</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="backupDialog">
+      <div class="dlg-body">
+        <h3>Backup &amp; restore</h3>
+        <p style="color:var(--muted);font-size:13px">Export saves your whole grind as a file. Import restores it (and is your path to a new device).</p>
+        <div class="row">
+          <button class="action" id="exportBtn">⬇ Export save</button>
+          <button class="action" id="importBtn">⬆ Import save</button>
+          <button class="action" id="resetBtn">⟲ Reset everything</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+        <button class="action" id="backupClose" style="margin-top:16px">Close</button>
+      </div>
+    </dialog>
   </div>
 
   <script src="aura-core.js"></script>
@@ -321,6 +374,91 @@
     set state(s) { state = s; },
     store, render, core,
   };
+
+  // ---- Add quest ----
+  const questDialog = el('questDialog');
+  el('addBtn').addEventListener('click', () => {
+    el('questDlgTitle').textContent = 'Add a quest';
+    el('qName').value = '';
+    questDialog.returnValue = '';
+    questDialog.showModal();
+  });
+  questDialog.addEventListener('close', () => {
+    if (questDialog.returnValue !== 'save') return;
+    const name = el('qName').value.trim();
+    if (!name) return;
+    state = core.addQuest(state, {
+      name,
+      branch: el('qBranch').value,
+      difficulty: el('qDiff').value,
+      type: el('qType').value,
+    });
+    store.save(state);
+    render();
+  });
+
+  // ---- Manage dailies (remove) ----
+  const manageDialog = el('manageDialog');
+  el('manageBtn').addEventListener('click', () => {
+    const list = el('manageList');
+    list.innerHTML = '';
+    state.quests.filter(q => q.type === 'daily').forEach(q => {
+      const row = document.createElement('div');
+      row.className = 'quest';
+      row.innerHTML = `<div class="name">${escapeHtml(q.name)}</div>` +
+        `<div class="tags"><span class="tag branch">${q.branch}</span>` +
+        `<span class="tag">${DIFF_ICON[q.difficulty]}</span></div>`;
+      const del = document.createElement('button');
+      del.className = 'action'; del.textContent = '✕';
+      del.addEventListener('click', () => {
+        state = core.removeQuest(state, q.id);
+        store.save(state);
+        render();
+        el('manageBtn').click(); // refresh list
+        manageDialog.close();
+      });
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+    manageDialog.showModal();
+  });
+  el('manageClose').addEventListener('click', () => manageDialog.close());
+
+  // ---- Backup ----
+  const backupDialog = el('backupDialog');
+  el('backupBtn').addEventListener('click', () => backupDialog.showModal());
+  el('backupClose').addEventListener('click', () => backupDialog.close());
+  el('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([store.exportJSON(state)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `aura-quest-${core.dateStr(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  el('importBtn').addEventListener('click', () => el('importFile').click());
+  el('importFile').addEventListener('change', (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        state = store.importJSON(reader.result);
+        render();
+        backupDialog.close();
+      } catch (e) {
+        alert('That file is not a valid Aura Quest save.');
+      }
+    };
+    reader.readAsText(file);
+  });
+  el('resetBtn').addEventListener('click', () => {
+    if (!confirm('Reset ALL progress? Export first if you want a backup.')) return;
+    state = core.freshState(core.dateStr(new Date()));
+    store.save(state);
+    render();
+    backupDialog.close();
+  });
 
   render();
 })();
