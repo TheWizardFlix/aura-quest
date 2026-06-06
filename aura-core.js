@@ -45,5 +45,21 @@
     return Math.round(base * streakMultiplier(streakDays));
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest };
+  function updateStreak(streak, today) {
+    if (streak.lastCompletedDate === today) return { ...streak };
+    if (streak.lastCompletedDate === addDays(today, -1)) {
+      return { count: streak.count + 1, lastCompletedDate: today };
+    }
+    return { count: 1, lastCompletedDate: today };
+  }
+
+  // What to DISPLAY today (a streak that wasn't kept up is visually 0).
+  function currentStreak(streak, today) {
+    if (!streak.lastCompletedDate) return 0;
+    if (streak.lastCompletedDate === today) return streak.count;
+    if (streak.lastCompletedDate === addDays(today, -1)) return streak.count;
+    return 0;
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays, streakMultiplier, auraForQuest, updateStreak, currentStreak };
 });

@@ -53,3 +53,30 @@ test('auraForQuest = round(base * streak multiplier)', () => {
   assert.equal(core.auraForQuest('solid', 10), 38); // round(25 * 1.5)
   assert.equal(core.auraForQuest('epic', 20), 120); // 60 * 2.0
 });
+
+test('updateStreak: first ever completion sets count to 1', () => {
+  const s = core.updateStreak({ count: 0, lastCompletedDate: null }, '2026-06-05');
+  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05' });
+});
+
+test('updateStreak: completing again same day does not change count', () => {
+  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-05' }, '2026-06-05');
+  assert.deepEqual(s, { count: 3, lastCompletedDate: '2026-06-05' });
+});
+
+test('updateStreak: completing the next day increments', () => {
+  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-04' }, '2026-06-05');
+  assert.deepEqual(s, { count: 4, lastCompletedDate: '2026-06-05' });
+});
+
+test('updateStreak: a gap resets to 1', () => {
+  const s = core.updateStreak({ count: 9, lastCompletedDate: '2026-06-02' }, '2026-06-05');
+  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05' });
+});
+
+test('currentStreak: 0 if the streak is broken (not today, not yesterday)', () => {
+  assert.equal(core.currentStreak({ count: 9, lastCompletedDate: '2026-06-02' }, '2026-06-05'), 0);
+  assert.equal(core.currentStreak({ count: 9, lastCompletedDate: '2026-06-04' }, '2026-06-05'), 9);
+  assert.equal(core.currentStreak({ count: 9, lastCompletedDate: '2026-06-05' }, '2026-06-05'), 9);
+  assert.equal(core.currentStreak({ count: 0, lastCompletedDate: null }, '2026-06-05'), 0);
+});
