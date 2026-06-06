@@ -163,8 +163,23 @@
   .warn{margin:14px 4px; color:#ffd0d0; font-size:13px; text-align:center;
     border:1px solid #5a2030; background:#2a0c14; border-radius:10px; padding:10px; display:none}
 
+  /* completion polish — a brief scale/glow pulse on the row + aura total */
+  .quest.just-done{animation:questPulse .55s ease}
+  @keyframes questPulse{
+    0%{transform:scale(1)}
+    35%{transform:scale(1.035); box-shadow:0 0 36px var(--aura)}
+    100%{transform:scale(1)}
+  }
+  .aura-total.bump{animation:auraBump .5s ease}
+  @keyframes auraBump{
+    0%{transform:scale(1)}
+    40%{transform:scale(1.08); text-shadow:0 0 70px #b98bff}
+    100%{transform:scale(1)}
+  }
+
   @media (prefers-reduced-motion: reduce){
-    body::before, body::after, .aura-total, .constellation-card{animation:none}
+    body::before, body::after, .aura-total, .constellation-card,
+    .quest.just-done, .aura-total.bump{animation:none}
   }
 </style>
 </head>
@@ -196,9 +211,119 @@
   <script src="aura-core.js"></script>
   <script src="store.js"></script>
   <script>
-    // App wiring is added in later tasks.
-    document.getElementById('constellation').innerHTML =
-      AuraCore.buildConstellationSVG(AuraCore.freshState(AuraCore.dateStr(new Date())));
+(function () {
+  const core = window.AuraCore;
+  const DIFF_ICON = { quick: '⚡', solid: '🔥', epic: '💎' };
+
+  // ---- storage backend with graceful fallback ----
+  let backend, storageOk = true;
+  try {
+    window.localStorage.setItem('auraquest.ping', '1');
+    window.localStorage.removeItem('auraquest.ping');
+    backend = window.localStorage;
+  } catch (e) {
+    storageOk = false;
+    const mem = new Map();
+    backend = { getItem: k => mem.has(k) ? mem.get(k) : null,
+                setItem: (k, v) => mem.set(k, String(v)),
+                removeItem: k => mem.delete(k) };
+  }
+  const store = window.Store.createStore(backend, core, () => core.dateStr(new Date()));
+  let state = store.load();
+
+  if (!storageOk) {
+    const w = document.getElementById('storageWarn');
+    w.style.display = 'block';
+    w.textContent = '⚠ This browser is blocking local storage (private mode?). Progress won\'t persist — use Backup → Export to save manually.';
+  }
+
+  // ---- render ----
+  const el = id => document.getElementById(id);
+  function render() {
+    const today = core.dateStr(new Date());
+    el('auraTotal').textContent = state.player.totalAura.toLocaleString();
+    el('rank').textContent = state.player.rank;
+    el('streak').textContent = core.currentStreak(state.player.streak, today);
+    el('todayCount').textContent = state.today.completedQuestIds.length;
+    el('constellation').innerHTML = core.buildConstellationSVG(state);
+
+    const board = el('questBoard');
+    board.innerHTML = '';
+    core.activeQuests(state).forEach(q => {
+      const done = state.today.completedQuestIds.includes(q.id);
+      const div = document.createElement('div');
+      div.className = 'quest' + (done ? ' done' : '');
+      div.dataset.questId = q.id;
+      div.innerHTML =
+        `<div class="check">${done ? '✦' : ''}</div>` +
+        `<div class="name">${escapeHtml(q.name)}</div>` +
+        `<div class="tags">` +
+          `<span class="tag branch">${q.branch}</span>` +
+          `<span class="tag">${DIFF_ICON[q.difficulty]} ${q.difficulty}</span>` +
+          (q.type === 'custom' ? `<span class="tag">one-off</span>` : '') +
+        `</div>`;
+      if (!done) div.addEventListener('click', (ev) => onComplete(q.id, ev));
+      board.appendChild(div);
+    });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // ---- complete a quest ----
+  function onComplete(questId, ev) {
+    const today = core.dateStr(new Date());
+    const next = core.completeQuest(state, questId, today);
+    if (next === state) return;
+    state = next;
+    store.save(state);
+    const earned = state.lastEarned;
+    auraPop(`+${earned.amount}`, ev.clientX, ev.clientY);
+    if (earned.perfectBonus > 0) {
+      setTimeout(() => auraPop(`PERFECT DAY +${earned.perfectBonus}`, window.innerWidth/2, 160), 350);
+    }
+    if (earned.rankedUp) {
+      setTimeout(() => rankUp(earned.rank), 500);
+    }
+    render();
+    // tasteful completion pulse on the freshly-completed row + aura total
+    const row = el('questBoard').querySelector(`[data-quest-id="${questId}"]`);
+    if (row) { row.classList.add('just-done');
+      setTimeout(() => row.classList.remove('just-done'), 600); }
+    const total = el('auraTotal');
+    total.classList.remove('bump'); void total.offsetWidth;
+    total.classList.add('bump');
+  }
+
+  function auraPop(text, x, y) {
+    const p = document.createElement('div');
+    p.className = 'aura-pop';
+    p.textContent = text;
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 1200);
+  }
+
+  function rankUp(rank) {
+    const banner = document.createElement('div');
+    banner.className = 'rankup show';
+    banner.innerHTML = `<div class="inner"><small>RANK UP</small>${rank}</div>`;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 2500);
+  }
+
+  // expose for later tasks (add/manage/backup wiring)
+  window.__aura = {
+    get state() { return state; },
+    set state(s) { state = s; },
+    store, render, core,
+  };
+
+  render();
+})();
   </script>
 </body>
 </html>
