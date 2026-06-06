@@ -79,23 +79,17 @@ JSON remains the manual backup + move path.
   aura-over-time sparkline, and lifetime perfect-day count. All derived from
   existing state; nothing here grants aura or pulls you back.
 
-### 2. Richer quests
+### 2. Quest scheduling
 
-Quests gain a **kind** field. v1 quests are all `check`.
+Quests remain simple **done / not-done** checks (the v1 behavior). The one
+addition is **day-of-week scheduling** for dailies: a `schedule` field (array of
+weekdays, default = all 7). Only scheduled days surface the quest, count it
+toward completion rate, and require it for a Perfect Day.
 
-- **`check`** — done / not done (today's behavior).
-- **`count`** — a numeric target (e.g. 5 km, 30 pages, 25 pushups). Aura scales
-  with the amount logged, **capped** so over-logging can't farm infinite aura.
-  Formula (tunable config): `auraEarned = baseAura × min(1, amount / target)`
-  for partial credit, with a small `× (1 + overflowBonus)` cap when target is
-  exceeded. Exact curve lives in a single config block.
-- **(Dropped) `timer`** — explicitly *not* built: a live in-app timer keeps the
-  app open, which fights the quick-exit law. Logging a duration as a `count`
-  ("meditate → 30 min") covers the need without holding you in the app.
-
-Quests also gain **day-of-week scheduling** for dailies: a `schedule` field
-(array of weekdays, default = all 7). Only scheduled days surface the quest,
-count it toward completion rate, and require it for a Perfect Day.
+- **(Dropped) `count` quests** — numeric-target quests (log km / pages / reps)
+  were considered and cut to keep quests dead-simple and the data model lean.
+- **(Dropped) `timer` quests** — a live in-app timer keeps the app open, which
+  fights the quick-exit law.
 
 ### 3. Surprise & reward — de-fanged (earned, never random)
 
@@ -110,9 +104,8 @@ count it toward completion rate, and require it for a Perfect Day.
   None are random; none trigger on app-open.
 - **Aura Surge** — the "surprise & delight" beat, made honest by attaching it to
   real effort instead of luck. A celebratory bonus + big animation fires when
-  you: finish a **Trial**, complete a **Perfect Week** (all scheduled dailies
-  every day for 7 days), or set a **personal best** on a `count` quest. Bonus
-  amounts live in config.
+  you finish a **Trial** or complete a **Perfect Week** (all scheduled dailies
+  every day for 7 days). Bonus amounts live in config.
 
 ### 4. Depth & ritual
 
@@ -126,8 +119,8 @@ count it toward completion rate, and require it for a Perfect Day.
   as a real skill tree without any humanoid avatar.
 - **Trials** — owner-defined, time-bound campaigns with a goal and a payoff.
   Shape: `{ id, name, branch, startDate, endDate, goal, status }` where goal is
-  e.g. "complete this daily every scheduled day" or "log N total of a count
-  quest." On success → Aura Surge + a badge. On expiry without success → quiet
+  e.g. "complete this daily every scheduled day" or "complete N quests in this
+  branch." On success → Aura Surge + a badge. On expiry without success → quiet
   close (no penalty, consistent with pure ascension).
 - **Daily reflection** *(Spirit, optional)* — a one-tap mood pick (small enum)
   plus an optional one-line journal entry, stored per day. Completing it grants
@@ -149,10 +142,9 @@ Still four internal units plus the new platform shell. New/changed pieces:
 - **PWA shell (new):** `manifest.json`, `service-worker.js`, icon assets. The
   service worker is the only piece that must live in a separate file (SWs can't
   be inline); it's tiny and isolated.
-- **Quest engine (extended):** `count` aura scaling, day-of-week schedule
-  resolution, perk resolution in aura calc, achievement evaluation, Trial
-  evaluation, Perfect-Week detection, personal-best detection. All added as
-  **pure functions** alongside the existing ones.
+- **Quest engine (extended):** day-of-week schedule resolution, perk resolution
+  in aura calc, achievement evaluation, Trial evaluation, and Perfect-Week
+  detection. All added as **pure functions** alongside the existing ones.
 - **Constellation renderer (extended):** render perk badges / level milestones on
   the star map. Still pure state → SVG.
 - **New view: Insight** (heatmap + stats). Pure render from `history` + state.
@@ -181,16 +173,12 @@ Still four internal units plus the new platform shell. New/changed pieces:
   quests: [
     {
       id, name, branch, difficulty, type,           // type: "daily" | "custom"
-      kind: "check" | "count",                       // NEW (default "check")
-      target: <number|null>,                         // NEW (count quests)
-      unit: <string|null>,                           // NEW ("km", "pages", ...)
-      schedule: [0..6] | null,                       // NEW (weekdays; null = all)
-      personalBest: <number|null>                    // NEW (count quests)
+      schedule: [0..6] | null                        // NEW (weekdays; null = all)
     }
   ],
   today: {
     date,
-    completed: [ { questId, amount? } ],             // amount for count quests
+    completedQuestIds: [],                           // resets on new day (v1)
     reflection: { mood, note } | null                // NEW
   },
   trials: [
@@ -205,19 +193,18 @@ Still four internal units plus the new platform shell. New/changed pieces:
 
 ### Migration v1 → v2
 
-On load, if `version === 1`: set `version: 2`; add `kind: "check"`, `target:
-null`, `unit: null`, `schedule: null`, `personalBest: null` to each quest; add
-`perks: []` to each branch; add `streak.best` (seed from current count); add
-empty `trials`, `achievements`; add `reflection: null` to `today`. Preserve the
-original blob first (same corrupt-recovery discipline as v1) in case migration
-needs to be redone.
+On load, if `version === 1`: set `version: 2`; add `schedule: null` to each
+quest; add `perks: []` to each branch; add `streak.best` (seed from current
+count); add empty `trials`, `achievements`; add `reflection: null` to `today`.
+Preserve the original blob first (same corrupt-recovery discipline as v1) in
+case migration needs to be redone.
 
 ## Aura economy additions (all config-driven)
 
 A single config block holds: difficulty→base aura (v1), rank thresholds (v1),
-streak multiplier curve (v1), perfect-day bonus (v1), **count-quest scaling +
-cap**, **perk effects**, **Aura Surge bonus amounts**, **achievement
-definitions**, **perfect-week bonus**. Everything tunable in one place.
+streak multiplier curve (v1), perfect-day bonus (v1), **perk effects**, **Aura
+Surge bonus amounts**, **achievement definitions**, **perfect-week bonus**.
+Everything tunable in one place.
 
 ## Quick-exit UX
 
@@ -231,13 +218,12 @@ grants nor withholds aura — they exist purely to send the user away.
 
 Extend the pure-function test suite (`node --test`) to cover:
 
-- `count` aura scaling: partial, exact, and over-target (cap enforced).
 - Day-of-week schedule: quest surfaces/counts only on scheduled days; Perfect
   Day ignores unscheduled quests.
 - Perk resolution: branch-level perks correctly multiply aura.
 - Achievement evaluation: each starter badge unlocks at its boundary, exactly
   once, never on app-open.
-- Aura Surge triggers: Trial success, Perfect Week, personal best.
+- Aura Surge triggers: Trial success, Perfect Week.
 - Best-ever streak tracking across same-day / next-day / gap transitions.
 - v1→v2 migration: a v1 save loads, upgrades, and preserves totals.
 
@@ -254,6 +240,7 @@ phone.
   backend is ever added.
 - **Real device screen-time reading** — no web API exists; off-phone is
   self-reported.
+- **Count / numeric-target quests** — dropped to keep quests dead-simple.
 - **Live in-app focus timer** — dropped on purpose (fights quick-exit).
 - **Spending / shop / cosmetics economy, HP / punishment, social / leaderboards,
   humanoid avatar** — all remain out, per the v1 spine.
