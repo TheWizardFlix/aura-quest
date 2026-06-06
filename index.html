@@ -294,6 +294,7 @@
     <h2 class="section">Today's Quests</h2>
     <div class="quests" id="questBoard"></div>
     <div class="row">
+      <button class="action" id="installBtn" style="display:none; border-color:var(--aura); box-shadow:0 0 24px #7b2bff66">📲 Install app</button>
       <button class="action" id="addBtn">➕ Add quest</button>
       <button class="action" id="reflectBtn">🌙 Reflect</button>
       <button class="action" id="insightBtn">📊 Insight</button>
@@ -888,6 +889,26 @@
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
   }
+
+  // ---- PWA: in-app install button (so you never hunt Chrome's menu) ----
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    el('installBtn').style.display = '';
+  });
+  el('installBtn').addEventListener('click', async () => {
+    if (!deferredPrompt) { toast('Use ⋮ → Add to Home screen', 'Your browser will install it from there.'); return; }
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    el('installBtn').style.display = 'none';
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    el('installBtn').style.display = 'none';
+    toast('✦ Installed', 'Aura Quest is on your home screen.');
+  });
 
   render();
 })();
