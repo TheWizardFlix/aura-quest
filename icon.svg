@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#2a1166"/>
+      <stop offset="55%" stop-color="#0c0820"/>
+      <stop offset="100%" stop-color="#06040c"/>
+    </radialGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="35%" stop-color="#c9a8ff"/>
+      <stop offset="100%" stop-color="#7b2bff"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- maskable safe area is the full square; keep art within central ~80% -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g stroke="#9d5bff" stroke-width="3" stroke-opacity="0.5" filter="url(#glow)">
+    <line x1="256" y1="256" x2="150" y2="150"/>
+    <line x1="256" y1="256" x2="372" y2="158"/>
+    <line x1="256" y1="256" x2="160" y2="360"/>
+    <line x1="256" y1="256" x2="368" y2="356"/>
+  </g>
+  <g fill="#d9c2ff" filter="url(#glow)">
+    <circle cx="150" cy="150" r="9"/>
+    <circle cx="372" cy="158" r="8"/>
+    <circle cx="160" cy="360" r="8"/>
+    <circle cx="368" cy="356" r="9"/>
+    <circle cx="110" cy="250" r="4"/>
+    <circle cx="410" cy="250" r="4"/>
+    <circle cx="256" cy="110" r="5"/>
+    <circle cx="256" cy="405" r="5"/>
+  </g>
+  <circle cx="256" cy="256" r="46" fill="url(#core)" filter="url(#glow)"/>
+</svg>

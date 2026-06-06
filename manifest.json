@@ -1,0 +1,16 @@
+{
+  "name": "Aura Quest",
+  "short_name": "Aura Quest",
+  "description": "Turn real-life discipline into a glowing mystic RPG grind. The aura only ever climbs.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06040c",
+  "theme_color": "#06040c",
+  "categories": ["lifestyle", "productivity", "health"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

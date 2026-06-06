@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aura Quest</title>
+<meta name="theme-color" content="#06040c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aura Quest">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   :root{
     --bg:#06040c; --bg2:#0c0820; --aura:#9d5bff; --aura2:#5e2bff;
@@ -177,9 +185,93 @@
     100%{transform:scale(1)}
   }
 
+  /* schedule picker (weekday chips) */
+  .weekdays{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap}
+  .wd{width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
+    border:1px solid var(--line); background:#0a0718; color:var(--muted);
+    cursor:pointer; font-size:12px; user-select:none; transition:.15s}
+  .wd.on{background:var(--aura); color:#fff; border-color:var(--aura);
+    box-shadow:0 0 14px #7b2bff77}
+  .field-hint{font-size:11px; color:var(--muted); margin-top:4px}
+
+  /* quest schedule tag */
+  .tag.sched{color:#9ad8ff}
+
+  /* INSIGHT — heatmap + stats */
+  .heat{display:flex; gap:3px; overflow-x:auto; padding:6px 2px 10px}
+  .heat-col{display:grid; grid-template-rows:repeat(7,1fr); gap:3px}
+  .heat-cell{width:13px; height:13px; border-radius:3px; background:#1a1338;
+    border:1px solid #ffffff08}
+  .stat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:6px 0 4px}
+  .stat{border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    background:linear-gradient(180deg,#120c2b,#0b0820)}
+  .stat .v{font-size:24px; font-weight:800; color:#e9d4ff; text-shadow:0 0 16px #7b2bff66}
+  .stat .l{font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase}
+  .bar{height:8px; border-radius:99px; background:#1a1338; overflow:hidden; margin-top:6px}
+  .bar > i{display:block; height:100%; background:linear-gradient(90deg,#5e2bff,#9d5bff); box-shadow:0 0 12px #7b2bff}
+  .branch-row{display:flex; align-items:center; gap:10px; margin:10px 0}
+  .branch-row .nm{flex:0 0 92px; font-size:13px}
+  .branch-row .lv{font-size:11px; color:var(--muted); flex:0 0 auto}
+  .branch-row .barwrap{flex:1}
+
+  /* TROPHIES / badges */
+  .badges{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px}
+  .badge{border:1px solid var(--line); border-radius:14px; padding:14px;
+    background:linear-gradient(180deg,#120c2b,#0b0820); text-align:center; opacity:.4;
+    filter:grayscale(1); transition:.25s}
+  .badge.on{opacity:1; filter:none; box-shadow:0 0 26px #7b2bff33; border-color:#5e2bff66}
+  .badge .ico{font-size:26px}
+  .badge .bn{font-weight:700; margin-top:6px; font-size:14px}
+  .badge .bd{font-size:11px; color:var(--muted); margin-top:3px}
+
+  /* TRIALS */
+  .trial{border:1px solid var(--line); border-radius:14px; padding:14px;
+    background:linear-gradient(180deg,#120c2b,#0b0820); margin-bottom:10px}
+  .trial .th{display:flex; justify-content:space-between; align-items:center; gap:8px}
+  .trial .tn{font-weight:700}
+  .trial .ts{font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid var(--line); color:var(--muted)}
+  .trial .ts.active{color:#9ad8ff; border-color:#27496b}
+  .trial .ts.complete{color:#b7ffcf; border-color:#2a6b46; background:#0e2a1c}
+  .trial .ts.expired{color:#ffb7b7; border-color:#6b2a2a}
+
+  /* MOOD picker */
+  .moods{display:flex; gap:10px; margin-top:6px; flex-wrap:wrap}
+  .mood{font-size:26px; width:48px; height:48px; border-radius:12px; border:1px solid var(--line);
+    background:#0a0718; cursor:pointer; transition:.15s}
+  .mood.on{border-color:var(--aura); box-shadow:0 0 18px #7b2bff66; transform:scale(1.08)}
+
+  /* SURGE banner (earned bonus moment) */
+  .surge{position:fixed; inset:0; z-index:65; display:grid; place-items:center; pointer-events:none; opacity:0}
+  .surge.show{animation:rankFlash 2.6s ease forwards}
+  .surge .inner{text-align:center}
+  .surge .big{font-size:clamp(30px,7vw,64px); font-weight:900;
+    background:linear-gradient(180deg,#fff,#c9a8ff,#7b2bff); -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 60px #9d5bff}
+  .surge small{display:block; letter-spacing:6px; color:#c9a8ff; font-size:14px; margin-bottom:6px}
+
+  /* TOAST stack (achievements / perks) */
+  .toasts{position:fixed; left:50%; transform:translateX(-50%); bottom:24px; z-index:70;
+    display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none}
+  .toast{background:#160e36ee; border:1px solid #5e2bff66; border-radius:12px; padding:10px 16px;
+    box-shadow:0 0 30px #7b2bff44; font-size:14px; color:#e9d4ff; animation:toastIn .4s ease, toastOut .4s ease 3.4s forwards}
+  .toast .tt{font-weight:700} .toast .td{color:var(--muted); font-size:12px}
+  @keyframes toastIn{from{opacity:0; transform:translateY(16px)}to{opacity:1}}
+  @keyframes toastOut{to{opacity:0; transform:translateY(-10px)}}
+
+  /* QUICK-EXIT curtain */
+  .curtain{position:fixed; inset:0; z-index:80; display:none; place-items:center;
+    background:radial-gradient(800px 600px at 50% 40%, #1a0d3eF2, #04020bFA);
+    backdrop-filter:blur(4px); text-align:center; padding:24px}
+  .curtain.show{display:grid; animation:toastIn .5s ease}
+  .curtain .c-in{max-width:420px}
+  .curtain .c-big{font-size:clamp(26px,6vw,44px); font-weight:800;
+    background:linear-gradient(180deg,#fff,#c9a8ff); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .curtain .c-sub{color:var(--muted); margin:12px 0 22px; line-height:1.5}
+  .curtain .c-stats{color:#d9b3ff; font-size:14px; margin-bottom:22px}
+
   @media (prefers-reduced-motion: reduce){
     body::before, body::after, .aura-total, .constellation-card,
-    .quest.just-done, .aura-total.bump{animation:none}
+    .quest.just-done, .aura-total.bump, .surge.show, .toast, .curtain.show{animation:none}
   }
 </style>
 </head>
@@ -203,6 +295,10 @@
     <div class="quests" id="questBoard"></div>
     <div class="row">
       <button class="action" id="addBtn">➕ Add quest</button>
+      <button class="action" id="reflectBtn">🌙 Reflect</button>
+      <button class="action" id="insightBtn">📊 Insight</button>
+      <button class="action" id="trophyBtn">🏅 Trophies</button>
+      <button class="action" id="trialBtn">⚔ Trials</button>
       <button class="action" id="manageBtn">✎ Manage dailies</button>
       <button class="action" id="backupBtn">☁ Backup / restore</button>
     </div>
@@ -231,6 +327,11 @@
             <option value="daily">Daily (recurring)</option>
           </select>
         </label>
+        <div class="field" id="qSchedRow" style="display:none">
+          On which days?
+          <div class="weekdays" id="qWeekdays"></div>
+          <div class="field-hint">All days selected = every day.</div>
+        </div>
         <div class="row">
           <button class="action" value="cancel">Cancel</button>
           <button class="action" id="qSave" value="save">Save quest</button>
@@ -259,6 +360,83 @@
         <button class="action" id="backupClose" style="margin-top:16px">Close</button>
       </div>
     </dialog>
+
+    <dialog id="insightDialog">
+      <div class="dlg-body">
+        <h3>📊 Insight</h3>
+        <div class="field-hint" style="margin-bottom:6px">Your aura over the last weeks — brighter = bigger day.</div>
+        <div class="heat" id="heat"></div>
+        <div class="stat-grid" id="statGrid"></div>
+        <h2 class="section" style="margin:18px 4px 6px">Branches</h2>
+        <div id="branchStats"></div>
+        <div class="row"><button class="action" id="insightClose">Close</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="trophyDialog">
+      <div class="dlg-body">
+        <h3>🏅 Trophies</h3>
+        <h2 class="section" style="margin:4px 4px 8px">Achievements</h2>
+        <div class="badges" id="badgeGrid"></div>
+        <h2 class="section" style="margin:18px 4px 8px">Constellation Perks</h2>
+        <div class="badges" id="perkGrid"></div>
+        <div class="row"><button class="action" id="trophyClose">Close</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="trialDialog">
+      <div class="dlg-body">
+        <h3>⚔ Trials</h3>
+        <div class="field-hint" style="margin-bottom:8px">Time-bound campaigns. Hit the target before the deadline for an Aura Surge.</div>
+        <div id="trialList"></div>
+        <h2 class="section" style="margin:16px 4px 8px">New Trial</h2>
+        <label class="field">Name
+          <input id="tName" maxlength="50" placeholder="e.g. 7-day dawn run">
+        </label>
+        <label class="field">Branch (optional)
+          <select id="tBranch">
+            <option value="">Any branch</option>
+            <option>Body</option><option>Mind</option><option>Craft</option><option>Spirit</option>
+          </select>
+        </label>
+        <label class="field">Target — quests to complete
+          <input id="tTarget" type="number" min="1" value="7">
+        </label>
+        <label class="field">Ends on
+          <input id="tEnd" type="date">
+        </label>
+        <div class="row">
+          <button class="action" id="tAdd">Start trial</button>
+          <button class="action" id="trialClose">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="reflectDialog">
+      <div class="dlg-body">
+        <h3>🌙 Daily Reflection</h3>
+        <div class="field-hint" id="reflectHint">One breath. How did today feel?</div>
+        <div class="moods" id="moodPicker"></div>
+        <label class="field" style="margin-top:14px">A line for the record (optional)
+          <input id="reflectNote" maxlength="140" placeholder="One sentence...">
+        </label>
+        <div class="row">
+          <button class="action" id="reflectSave">Save reflection</button>
+          <button class="action" id="reflectClose">Close</button>
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <div class="surge" id="surge"><div class="inner"><small id="surgeLabel">AURA SURGE</small><div class="big" id="surgeAmt">+0</div></div></div>
+  <div class="toasts" id="toasts"></div>
+  <div class="curtain" id="curtain">
+    <div class="c-in">
+      <div class="c-big">✦ You're done</div>
+      <div class="c-sub">The aura is logged. Now go live the part that actually matters — your phone has nothing left for you here.</div>
+      <div class="c-stats" id="curtainStats"></div>
+      <button class="action" id="curtainClose">Close it out</button>
+    </div>
   </div>
 
   <script src="aura-core.js"></script>
@@ -267,6 +445,12 @@
 (function () {
   const core = window.AuraCore;
   const DIFF_ICON = { quick: '⚡', solid: '🔥', epic: '💎' };
+  const WD_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const MOODS = ['😣', '😕', '😐', '🙂', '😄'];
+  function schedLabel(schedule) {
+    if (!schedule || schedule.length === 0 || schedule.length === 7) return null;
+    return schedule.slice().sort().map(d => core.WEEKDAYS[d]).join('·');
+  }
 
   // ---- storage backend with graceful fallback ----
   let backend, storageOk = true;
@@ -302,8 +486,9 @@
 
     const board = el('questBoard');
     board.innerHTML = '';
-    core.activeQuests(state).forEach(q => {
+    core.activeQuests(state, today).forEach(q => {
       const done = state.today.completedQuestIds.includes(q.id);
+      const sl = q.type === 'daily' ? schedLabel(q.schedule) : null;
       const div = document.createElement('div');
       div.className = 'quest' + (done ? ' done' : '');
       div.dataset.questId = q.id;
@@ -314,10 +499,15 @@
           `<span class="tag branch">${q.branch}</span>` +
           `<span class="tag">${DIFF_ICON[q.difficulty]} ${q.difficulty}</span>` +
           (q.type === 'custom' ? `<span class="tag">one-off</span>` : '') +
+          (sl ? `<span class="tag sched">${sl}</span>` : '') +
         `</div>`;
       if (!done) div.addEventListener('click', (ev) => onComplete(q.id, ev));
       board.appendChild(div);
     });
+
+    // Reflect button reflects today's state
+    const rb = el('reflectBtn');
+    if (rb) rb.textContent = state.today.reflection ? '🌙 Reflected ✓' : '🌙 Reflect';
   }
 
   function escapeHtml(s) {
@@ -340,6 +530,13 @@
     if (earned.rankedUp) {
       setTimeout(() => rankUp(earned.rank), 500);
     }
+    if (earned.surge > 0) {
+      setTimeout(() => surge(earned.surgeReason, earned.surge), earned.rankedUp ? 1400 : 650);
+    }
+    (earned.newPerks || []).forEach((p, i) =>
+      setTimeout(() => toast('✦ Perk unlocked', `${p.name} — ${p.desc}`), 900 + i * 400));
+    (earned.newAchievements || []).forEach((a, i) =>
+      setTimeout(() => toast('🏅 ' + a.name, a.desc), 1100 + i * 400));
     render();
     // tasteful completion pulse on the freshly-completed row + aura total
     const row = el('questBoard').querySelector(`[data-quest-id="${questId}"]`);
@@ -348,6 +545,18 @@
     const total = el('auraTotal');
     total.classList.remove('bump'); void total.offsetWidth;
     total.classList.add('bump');
+    maybeCurtain(today);
+  }
+
+  // Quick-exit: when every scheduled daily is done, invite the user to leave.
+  function maybeCurtain(today) {
+    const cs = core.completionStats(state, today);
+    if (cs.scheduled > 0 && cs.done >= cs.scheduled) {
+      const streak = core.currentStreak(state.player.streak, today);
+      el('curtainStats').textContent =
+        `+${state.today.auraEarned} aura today · ${streak} day streak 🔥 · ${state.player.rank}`;
+      setTimeout(() => el('curtain').classList.add('show'), 1600);
+    }
   }
 
   function auraPop(text, x, y) {
@@ -368,6 +577,22 @@
     setTimeout(() => banner.remove(), 2500);
   }
 
+  function surge(reason, amount) {
+    el('surgeLabel').textContent = (reason || 'AURA SURGE').toUpperCase();
+    el('surgeAmt').textContent = `+${amount}`;
+    const s = el('surge');
+    s.classList.remove('show'); void s.offsetWidth; s.classList.add('show');
+    setTimeout(() => s.classList.remove('show'), 2700);
+  }
+
+  function toast(title, desc) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<div class="tt">${escapeHtml(title)}</div>` + (desc ? `<div class="td">${escapeHtml(desc)}</div>` : '');
+    el('toasts').appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
   // expose for later tasks (add/manage/backup wiring)
   window.__aura = {
     get state() { return state; },
@@ -377,9 +602,26 @@
 
   // ---- Add quest ----
   const questDialog = el('questDialog');
+  // build weekday chips once
+  const wdState = [true, true, true, true, true, true, true];
+  (function buildWeekdays() {
+    const wrap = el('qWeekdays');
+    WD_SHORT.forEach((lbl, i) => {
+      const c = document.createElement('div');
+      c.className = 'wd on'; c.textContent = lbl; c.title = core.WEEKDAYS[i];
+      c.addEventListener('click', () => { wdState[i] = !wdState[i]; c.classList.toggle('on', wdState[i]); });
+      wrap.appendChild(c);
+    });
+  })();
+  function syncSchedRow() {
+    el('qSchedRow').style.display = el('qType').value === 'daily' ? 'block' : 'none';
+  }
+  el('qType').addEventListener('change', syncSchedRow);
   el('addBtn').addEventListener('click', () => {
     el('questDlgTitle').textContent = 'Add a quest';
     el('qName').value = '';
+    for (let i = 0; i < 7; i++) { wdState[i] = true; el('qWeekdays').children[i].classList.add('on'); }
+    syncSchedRow();
     questDialog.returnValue = '';
     questDialog.showModal();
   });
@@ -387,11 +629,18 @@
     if (questDialog.returnValue !== 'save') return;
     const name = el('qName').value.trim();
     if (!name) return;
+    const type = el('qType').value;
+    let schedule = null;
+    if (type === 'daily') {
+      const days = wdState.map((on, i) => on ? i : -1).filter(i => i >= 0);
+      schedule = (days.length === 0 || days.length === 7) ? null : days; // all/none = every day
+    }
     state = core.addQuest(state, {
       name,
       branch: el('qBranch').value,
       difficulty: el('qDiff').value,
-      type: el('qType').value,
+      type,
+      schedule,
     });
     store.save(state);
     render();
@@ -405,9 +654,11 @@
     state.quests.filter(q => q.type === 'daily').forEach(q => {
       const row = document.createElement('div');
       row.className = 'quest';
+      const sl = schedLabel(q.schedule);
       row.innerHTML = `<div class="name">${escapeHtml(q.name)}</div>` +
         `<div class="tags"><span class="tag branch">${q.branch}</span>` +
-        `<span class="tag">${DIFF_ICON[q.difficulty]}</span></div>`;
+        `<span class="tag">${DIFF_ICON[q.difficulty]}</span>` +
+        (sl ? `<span class="tag sched">${sl}</span>` : '') + `</div>`;
       const del = document.createElement('button');
       del.className = 'action'; del.textContent = '✕';
       del.addEventListener('click', () => {
@@ -461,6 +712,182 @@
     render();
     backupDialog.close();
   });
+
+  // ---- Insight (heatmap + stats) ----
+  const insightDialog = el('insightDialog');
+  function renderInsight() {
+    const today = core.dateStr(new Date());
+    const byDate = core.auraByDate(state);
+    const WEEKS = 26; // ~6 months
+    // Build columns oldest->newest, each column a week (Sun..Sat).
+    const heat = el('heat');
+    heat.innerHTML = '';
+    // find the Sunday on/after (today - WEEKS weeks)
+    const start = core.addDays(today, -(WEEKS * 7 - 1));
+    let cursor = core.addDays(start, -core.weekdayOf(start)); // back up to Sunday
+    const max = Math.max(60, ...Object.values(byDate));
+    for (let w = 0; w <= WEEKS; w++) {
+      const col = document.createElement('div'); col.className = 'heat-col';
+      for (let d = 0; d < 7; d++) {
+        const date = core.addDays(cursor, w * 7 + d);
+        const cell = document.createElement('div'); cell.className = 'heat-cell';
+        const aura = byDate[date] || 0;
+        if (date > today) { cell.style.visibility = 'hidden'; }
+        else if (aura > 0) {
+          const t = Math.min(1, aura / max);
+          cell.style.background = `hsl(265 90% ${18 + t * 42}%)`;
+          cell.style.boxShadow = `0 0 ${4 + t * 10}px hsl(265 90% 60% / ${0.3 + t * 0.5})`;
+          cell.title = `${date}: +${aura} aura`;
+        } else { cell.title = `${date}: —`; }
+        col.appendChild(cell);
+      }
+      heat.appendChild(col);
+    }
+    // stat cards
+    const cs = core.completionStats(state, today);
+    const cells = [
+      ['Total aura', state.player.totalAura.toLocaleString()],
+      ['Best streak', (state.player.streak.best || 0) + ' 🔥'],
+      ['Current streak', core.currentStreak(state.player.streak, today) + ' 🔥'],
+      ['Perfect days', core.perfectDayCount(state)],
+      ['Today', `${cs.done}/${cs.scheduled} done`],
+      ['Rank', state.player.rank],
+    ];
+    el('statGrid').innerHTML = cells.map(([l, v]) =>
+      `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+    // per-branch level bars
+    el('branchStats').innerHTML = core.BRANCHES.map(b => {
+      const aura = state.branches[b].aura;
+      const lv = core.branchLevel(aura);
+      const into = aura % core.BRANCH_LEVEL_STEP;
+      const pct = Math.round(into / core.BRANCH_LEVEL_STEP * 100);
+      return `<div class="branch-row"><div class="nm">${b}</div>` +
+        `<div class="barwrap"><div class="bar"><i style="width:${pct}%"></i></div></div>` +
+        `<div class="lv">Lv ${lv} · ${aura}</div></div>`;
+    }).join('');
+  }
+  el('insightBtn').addEventListener('click', () => { renderInsight(); insightDialog.showModal(); });
+  el('insightClose').addEventListener('click', () => insightDialog.close());
+
+  // ---- Trophies (achievements + perks) ----
+  const trophyDialog = el('trophyDialog');
+  function renderTrophies() {
+    const have = new Set((state.achievements || []).map(a => a.id));
+    el('badgeGrid').innerHTML = core.ACHIEVEMENTS.map(a => {
+      const on = have.has(a.id);
+      return `<div class="badge ${on ? 'on' : ''}"><div class="ico">${on ? '🏅' : '🔒'}</div>` +
+        `<div class="bn">${escapeHtml(a.name)}</div><div class="bd">${escapeHtml(a.desc)}</div></div>`;
+    }).join('');
+    el('perkGrid').innerHTML = core.BRANCHES.map(b => {
+      const p = core.PERKS[b];
+      const on = (state.branches[b].perks || []).includes(p.id);
+      return `<div class="badge ${on ? 'on' : ''}"><div class="ico">${on ? '✦' : '🔒'}</div>` +
+        `<div class="bn">${escapeHtml(p.name)}</div><div class="bd">${escapeHtml(p.desc)}${on ? '' : ` · ${b} Lv ${p.level}`}</div></div>`;
+    }).join('');
+  }
+  el('trophyBtn').addEventListener('click', () => { renderTrophies(); trophyDialog.showModal(); });
+  el('trophyClose').addEventListener('click', () => trophyDialog.close());
+
+  // ---- Trials ----
+  const trialDialog = el('trialDialog');
+  function renderTrials() {
+    const list = el('trialList');
+    const trials = (state.trials || []).slice().reverse();
+    if (trials.length === 0) { list.innerHTML = `<div class="field-hint">No trials yet. Start one below.</div>`; return; }
+    list.innerHTML = trials.map(t => {
+      const pct = Math.min(100, Math.round((t.progress || 0) / t.target * 100));
+      const meta = [t.branch || 'Any', t.endDate ? `by ${t.endDate}` : 'no deadline'].join(' · ');
+      return `<div class="trial"><div class="th"><span class="tn">${escapeHtml(t.name || 'Trial')}</span>` +
+        `<span class="ts ${t.status}">${t.status}</span></div>` +
+        `<div class="field-hint" style="margin:4px 0 8px">${meta} · ${t.progress || 0}/${t.target}</div>` +
+        `<div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    }).join('');
+  }
+  el('trialBtn').addEventListener('click', () => {
+    renderTrials();
+    el('tEnd').value = core.addDays(core.dateStr(new Date()), 7);
+    trialDialog.showModal();
+  });
+  el('trialClose').addEventListener('click', () => trialDialog.close());
+  el('tAdd').addEventListener('click', () => {
+    const name = el('tName').value.trim();
+    const target = parseInt(el('tTarget').value, 10);
+    if (!name || !(target > 0)) { alert('Give the trial a name and a target of at least 1.'); return; }
+    state = core.addTrial(state, {
+      name, branch: el('tBranch').value || null, target,
+      startDate: core.dateStr(new Date()), endDate: el('tEnd').value || null,
+    });
+    store.save(state);
+    el('tName').value = '';
+    renderTrials();
+  });
+
+  // ---- Reflect ----
+  const reflectDialog = el('reflectDialog');
+  let chosenMood = null;
+  (function buildMoods() {
+    const wrap = el('moodPicker');
+    MOODS.forEach((emo, i) => {
+      const m = document.createElement('div');
+      m.className = 'mood'; m.textContent = emo; m.dataset.mood = i;
+      m.addEventListener('click', () => {
+        chosenMood = i;
+        [...wrap.children].forEach(c => c.classList.toggle('on', c === m));
+      });
+      wrap.appendChild(m);
+    });
+  })();
+  el('reflectBtn').addEventListener('click', () => {
+    const done = !!state.today.reflection;
+    el('reflectHint').textContent = done
+      ? 'You already reflected today. Come back tomorrow. 🌙'
+      : 'One breath. How did today feel?';
+    el('reflectSave').style.display = done ? 'none' : '';
+    if (done && state.today.reflection.mood != null) {
+      chosenMood = state.today.reflection.mood;
+      [...el('moodPicker').children].forEach((c, i) => c.classList.toggle('on', i === chosenMood));
+      el('reflectNote').value = state.today.reflection.note || '';
+      el('reflectNote').disabled = true;
+    } else {
+      chosenMood = null;
+      [...el('moodPicker').children].forEach(c => c.classList.remove('on'));
+      el('reflectNote').value = ''; el('reflectNote').disabled = false;
+    }
+    reflectDialog.showModal();
+  });
+  el('reflectClose').addEventListener('click', () => reflectDialog.close());
+  el('reflectSave').addEventListener('click', () => {
+    const today = core.dateStr(new Date());
+    const next = core.setReflection(state, { mood: chosenMood, note: el('reflectNote').value }, today);
+    if (next === state) { reflectDialog.close(); return; }
+    state = next; store.save(state);
+    const e = state.lastEarned;
+    (e.newAchievements || []).forEach((a, i) => setTimeout(() => toast('🏅 ' + a.name, a.desc), 200 + i * 400));
+    if (e.rankedUp) setTimeout(() => rankUp(e.rank), 300);
+    reflectDialog.close();
+    render();
+    toast('🌙 Reflection saved', `+${e.amount} Spirit aura`);
+  });
+
+  // ---- Quick-exit curtain ----
+  el('curtainClose').addEventListener('click', () => el('curtain').classList.remove('show'));
+
+  // ---- gentle "still here?" nudge after a few minutes in-app (no rewards, just a nudge) ----
+  let nudged = false;
+  function armNudge() {
+    setTimeout(() => {
+      if (nudged) return;
+      // only nudge if no dialog is open and the curtain isn't up
+      const anyOpen = [...document.querySelectorAll('dialog')].some(d => d.open) || el('curtain').classList.contains('show');
+      if (!anyOpen) { nudged = true; toast('Still here?', 'Your aura is saved — the rest of life is off-screen.'); }
+    }, 4 * 60 * 1000);
+  }
+  armNudge();
+
+  // ---- PWA: register the service worker (offline + installable) ----
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
+  }
 
   render();
 })();
