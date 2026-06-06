@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const core = require('../aura-core.js');
 
 test('core module loads and exposes version', () => {
-  assert.equal(core.CORE_VERSION, 1);
+  assert.equal(core.CORE_VERSION, 2);
 });
 
 test('DIFFICULTY_AURA has the three tiers', () => {
@@ -56,22 +56,22 @@ test('auraForQuest = round(base * streak multiplier)', () => {
 
 test('updateStreak: first ever completion sets count to 1', () => {
   const s = core.updateStreak({ count: 0, lastCompletedDate: null }, '2026-06-05');
-  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05' });
+  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05', best: 1 });
 });
 
 test('updateStreak: completing again same day does not change count', () => {
-  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-05' }, '2026-06-05');
-  assert.deepEqual(s, { count: 3, lastCompletedDate: '2026-06-05' });
+  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-05', best: 3 }, '2026-06-05');
+  assert.deepEqual(s, { count: 3, lastCompletedDate: '2026-06-05', best: 3 });
 });
 
 test('updateStreak: completing the next day increments', () => {
-  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-04' }, '2026-06-05');
-  assert.deepEqual(s, { count: 4, lastCompletedDate: '2026-06-05' });
+  const s = core.updateStreak({ count: 3, lastCompletedDate: '2026-06-04', best: 3 }, '2026-06-05');
+  assert.deepEqual(s, { count: 4, lastCompletedDate: '2026-06-05', best: 4 });
 });
 
-test('updateStreak: a gap resets to 1', () => {
-  const s = core.updateStreak({ count: 9, lastCompletedDate: '2026-06-02' }, '2026-06-05');
-  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05' });
+test('updateStreak: a gap resets count to 1 but preserves best-ever', () => {
+  const s = core.updateStreak({ count: 9, lastCompletedDate: '2026-06-02', best: 9 }, '2026-06-05');
+  assert.deepEqual(s, { count: 1, lastCompletedDate: '2026-06-05', best: 9 });
 });
 
 test('currentStreak: 0 if the streak is broken (not today, not yesterday)', () => {
@@ -83,7 +83,7 @@ test('currentStreak: 0 if the streak is broken (not today, not yesterday)', () =
 
 test('freshState builds a valid empty save with four branches and seed quests', () => {
   const s = core.freshState('2026-06-05');
-  assert.equal(s.version, 1);
+  assert.equal(s.version, 2);
   assert.equal(s.player.totalAura, 0);
   assert.equal(s.player.rank, 'Dormant');
   assert.deepEqual(Object.keys(s.branches), core.BRANCHES);
@@ -235,4 +235,236 @@ test('buildConstellationSVG draws more stars as a branch gains aura', () => {
   const hiSvg = core.buildConstellationSVG(hi);
   const count = (str) => (str.match(/class="star"/g) || []).length;
   assert.ok(count(hiSvg) > count(lo), 'more aura => more stars');
+});
+
+// ---------------------------------------------------------------------------
+// v2: day-of-week scheduling
+// ---------------------------------------------------------------------------
+
+test('weekdayOf returns 0..6 (Sun..Sat)', () => {
+  assert.equal(core.weekdayOf('2026-06-07'), 0); // Sunday
+  assert.equal(core.weekdayOf('2026-06-08'), 1); // Monday
+  assert.equal(core.weekdayOf('2026-06-06'), 6); // Saturday
+});
+
+test('isScheduledOn: null schedule = every day; custom quests always count', () => {
+  assert.equal(core.isScheduledOn({ type: 'daily', schedule: null }, '2026-06-08'), true);
+  assert.equal(core.isScheduledOn({ type: 'daily', schedule: [] }, '2026-06-08'), true);
+  assert.equal(core.isScheduledOn({ type: 'custom' }, '2026-06-08'), true);
+});
+
+test('isScheduledOn: a weekday list only matches listed days', () => {
+  const mwf = { type: 'daily', schedule: [1, 3, 5] };
+  assert.equal(core.isScheduledOn(mwf, '2026-06-08'), true);  // Monday
+  assert.equal(core.isScheduledOn(mwf, '2026-06-09'), false); // Tuesday
+});
+
+test('completeQuest refuses a quest not scheduled today', () => {
+  const s = core.freshState('2026-06-09'); // Tuesday
+  s.quests = [{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily', schedule: [1] }]; // Mon only
+  const out = core.completeQuest(s, 'a', '2026-06-09');
+  assert.equal(out, s, 'unscheduled completion is a no-op');
+});
+
+test('Perfect Day ignores quests not scheduled for today', () => {
+  const s = core.freshState('2026-06-09'); // Tuesday
+  s.quests = [
+    { id: 'a', name: 'Run', branch: 'Body', difficulty: 'quick', type: 'daily', schedule: null },     // today
+    { id: 'b', name: 'Mon thing', branch: 'Mind', difficulty: 'quick', type: 'daily', schedule: [1] }, // not today
+  ];
+  const out = core.completeQuest(s, 'a', '2026-06-09'); // only scheduled daily -> perfect
+  assert.equal(out.today.perfectAwarded, true);
+  assert.equal(out.lastEarned.perfectBonus, 50);
+});
+
+// ---------------------------------------------------------------------------
+// v2: branch levels + perks
+// ---------------------------------------------------------------------------
+
+test('branchLevel is 1 + floor(aura/250); level 5 at 1000', () => {
+  assert.equal(core.branchLevel(0), 1);
+  assert.equal(core.branchLevel(249), 1);
+  assert.equal(core.branchLevel(250), 2);
+  assert.equal(core.branchLevel(1000), 5);
+});
+
+test('growBranch unlocks the branch perk on reaching level 5', () => {
+  const branches = { Body: { aura: 980, level: 4, perks: [] }, Mind: { aura: 0, level: 1, perks: [] }, Craft: { aura: 0, level: 1, perks: [] }, Spirit: { aura: 0, level: 1, perks: [] } };
+  const out = core.growBranch(branches, 'Body', 30); // 980 -> 1010 = level 5
+  assert.equal(out.branches.Body.level, 5);
+  assert.ok(out.branches.Body.perks.includes('body-flow'));
+  assert.equal(out.newPerks.length, 1);
+  assert.equal(out.newPerks[0].id, 'body-flow');
+});
+
+test('Body perk adds +10% aura on Body quests once unlocked', () => {
+  const s = core.freshState('2026-06-05');
+  s.branches.Body = { aura: 1000, level: 5, perks: ['body-flow'] };
+  s.quests = [{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'epic', type: 'custom', schedule: null }];
+  const out = core.completeQuest(s, 'a', '2026-06-05');
+  // base epic day-1 = round(60*1.05)=63, +10% perk = round(63*1.1)=69
+  assert.equal(out.lastEarned.amount, 69);
+});
+
+test('Spirit perk boosts the Perfect-Day bonus by 50%', () => {
+  const s = core.freshState('2026-06-05');
+  s.branches.Spirit = { aura: 1000, level: 5, perks: ['spirit-deep'] };
+  s.quests = [{ id: 'a', name: 'Sit', branch: 'Spirit', difficulty: 'quick', type: 'daily', schedule: null }];
+  const out = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(out.lastEarned.perfectBonus, 75); // 50 * 1.5
+});
+
+// ---------------------------------------------------------------------------
+// v2: achievements
+// ---------------------------------------------------------------------------
+
+test('first completion unlocks the First Light achievement, exactly once', () => {
+  const s = stateWith([{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily' }]);
+  const out = core.completeQuest(s, 'a', '2026-06-05');
+  const ids = out.achievements.map(a => a.id);
+  assert.ok(ids.includes('first-light'));
+  // completing another quest the same day must not re-award it
+  const s2 = core.addQuest(out, { name: 'Read', branch: 'Mind', difficulty: 'quick', type: 'daily', schedule: null });
+  const id2 = s2.quests[s2.quests.length - 1].id;
+  const out2 = core.completeQuest(s2, id2, '2026-06-05');
+  assert.equal(out2.achievements.filter(a => a.id === 'first-light').length, 1);
+  assert.ok(!out2.lastEarned.newAchievements.find(a => a.id === 'first-light'));
+});
+
+test('crossing 500 total aura unlocks the Awakened achievement', () => {
+  const s = stateWith([{ id: 'a', name: 'Epic', branch: 'Craft', difficulty: 'epic', type: 'custom' }]);
+  s.player.totalAura = 480;
+  const out = core.completeQuest(s, 'a', '2026-06-05'); // -> 543
+  assert.ok(out.lastEarned.newAchievements.find(a => a.id === 'rank-awakening'));
+});
+
+// ---------------------------------------------------------------------------
+// v2: perfect week surge
+// ---------------------------------------------------------------------------
+
+test('a 7th consecutive perfect day fires the Perfect Week surge once', () => {
+  const s = stateWith([{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'quick', type: 'daily' }], '2026-06-10');
+  // seed 6 prior perfect days
+  s.history = [];
+  for (let i = 6; i >= 1; i--) s.history.push({ date: core.addDays('2026-06-10', -i), perfectDay: true, auraEarned: 11 });
+  const out = core.completeQuest(s, 'a', '2026-06-10'); // today becomes perfect -> 7 in a row
+  assert.equal(out.lastEarned.surge, core.PERFECT_WEEK_BONUS);
+  assert.equal(out.lastEarned.surgeReason, 'Perfect Week');
+  assert.equal(out.player.perfectWeeks, 1);
+  assert.ok(out.achievements.find(a => a.id === 'first-perfect-week'));
+});
+
+test('perfect week does not fire if a prior day was missed', () => {
+  const s = stateWith([{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'quick', type: 'daily' }], '2026-06-10');
+  s.history = [];
+  for (let i = 6; i >= 1; i--) s.history.push({ date: core.addDays('2026-06-10', -i), perfectDay: i !== 3, auraEarned: 11 });
+  const out = core.completeQuest(s, 'a', '2026-06-10');
+  assert.equal(out.lastEarned.surge, 0);
+});
+
+// ---------------------------------------------------------------------------
+// v2: trials
+// ---------------------------------------------------------------------------
+
+test('completing trial-target quests in the window completes the trial with a surge', () => {
+  let s = core.freshState('2026-06-05');
+  s.quests = [
+    { id: 'a', name: 'Mix', branch: 'Craft', difficulty: 'solid', type: 'daily', schedule: null },
+    { id: 'b', name: 'Master', branch: 'Craft', difficulty: 'solid', type: 'daily', schedule: null },
+  ];
+  s = core.addTrial(s, { name: 'Album sprint', branch: 'Craft', target: 2, startDate: '2026-06-01', endDate: '2026-06-30' });
+  s = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(s.trials[0].progress, 1);
+  assert.equal(s.trials[0].status, 'active');
+  s = core.completeQuest(s, 'b', '2026-06-05');
+  assert.equal(s.trials[0].status, 'complete');
+  assert.equal(s.lastEarned.surge, core.TRIAL_BONUS);
+  assert.equal(s.lastEarned.surgeReason, 'Trial Complete');
+  assert.ok(s.achievements.find(a => a.id === 'first-trial'));
+});
+
+test('a trial only advances for its own branch', () => {
+  let s = core.freshState('2026-06-05');
+  s.quests = [{ id: 'a', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily', schedule: null }];
+  s = core.addTrial(s, { name: 'Craft only', branch: 'Craft', target: 1, startDate: '2026-06-01', endDate: '2026-06-30' });
+  s = core.completeQuest(s, 'a', '2026-06-05');
+  assert.equal(s.trials[0].progress, 0);
+  assert.equal(s.trials[0].status, 'active');
+});
+
+test('rolloverIfNewDay expires trials past their end date', () => {
+  let s = core.freshState('2026-06-05');
+  s = core.addTrial(s, { name: 'Old', branch: null, target: 5, startDate: '2026-06-01', endDate: '2026-06-04' });
+  const out = core.rolloverIfNewDay(s, '2026-06-06');
+  assert.equal(out.trials[0].status, 'expired');
+});
+
+// ---------------------------------------------------------------------------
+// v2: reflection
+// ---------------------------------------------------------------------------
+
+test('setReflection grants Spirit aura once per day and stores the entry', () => {
+  const s = core.freshState('2026-06-05');
+  const out = core.setReflection(s, { mood: 'calm', note: 'good day' }, '2026-06-05');
+  assert.equal(out.today.reflection.mood, 'calm');
+  assert.equal(out.branches.Spirit.aura, core.REFLECTION_AURA);
+  assert.equal(out.player.totalAura, core.REFLECTION_AURA);
+  // second call same day is a no-op
+  const again = core.setReflection(out, { mood: 'tired', note: 'x' }, '2026-06-05');
+  assert.equal(again, out);
+});
+
+// ---------------------------------------------------------------------------
+// v2: migration
+// ---------------------------------------------------------------------------
+
+test('migrate upgrades a v1 save to v2 and preserves totals', () => {
+  const v1 = {
+    version: 1,
+    player: { totalAura: 1234, rank: 'Awakening', createdAt: '2026-05-01', lastActiveDate: '2026-06-04', streak: { count: 5, lastCompletedDate: '2026-06-04' } },
+    branches: { Body: { aura: 600, level: 1 }, Mind: { aura: 200, level: 1 }, Craft: { aura: 434, level: 1 }, Spirit: { aura: 0, level: 1 } },
+    quests: [{ id: 'q1', name: 'Run', branch: 'Body', difficulty: 'solid', type: 'daily' }],
+    today: { date: '2026-06-04', completedQuestIds: ['q1'], perfectAwarded: false },
+    history: [{ date: '2026-06-03', completedCount: 2, perfectDay: true }],
+  };
+  const out = core.migrate(v1);
+  assert.equal(out.version, 2);
+  assert.equal(out.player.totalAura, 1234);
+  assert.equal(out.player.streak.best, 5);
+  assert.equal(out.player.perfectWeeks, 0);
+  assert.deepEqual(out.branches.Body.perks, []);
+  assert.equal(out.quests[0].schedule, null);
+  assert.deepEqual(out.trials, []);
+  assert.deepEqual(out.achievements, []);
+  assert.equal(out.today.reflection, null);
+});
+
+test('migrate is idempotent on a v2 save', () => {
+  const s = core.freshState('2026-06-05');
+  assert.equal(core.migrate(s), s); // already current -> returned as-is
+});
+
+// ---------------------------------------------------------------------------
+// v2: stats helpers
+// ---------------------------------------------------------------------------
+
+test('auraByDate merges history with the live today total', () => {
+  const s = core.freshState('2026-06-05');
+  s.history = [{ date: '2026-06-03', auraEarned: 40, perfectDay: false }, { date: '2026-06-04', auraEarned: 25, perfectDay: false }];
+  s.today.auraEarned = 60;
+  const map = core.auraByDate(s);
+  assert.equal(map['2026-06-03'], 40);
+  assert.equal(map['2026-06-04'], 25);
+  assert.equal(map['2026-06-05'], 60);
+});
+
+test('completionStats counts only scheduled dailies for today', () => {
+  const s = core.freshState('2026-06-09'); // Tuesday
+  s.quests = [
+    { id: 'a', name: 'A', branch: 'Body', difficulty: 'quick', type: 'daily', schedule: null },
+    { id: 'b', name: 'B', branch: 'Mind', difficulty: 'quick', type: 'daily', schedule: [1] }, // Mon only - excluded
+  ];
+  s.today.completedQuestIds = ['a'];
+  const cs = core.completionStats(s, '2026-06-09');
+  assert.deepEqual(cs, { done: 1, scheduled: 1 });
 });

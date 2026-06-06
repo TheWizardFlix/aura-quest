@@ -21,7 +21,8 @@
         backend.setItem(CORRUPT_KEY, raw); // keep for manual recovery
         return core.freshState(today());
       }
-      const rolled = core.rolloverIfNewDay(parsed, today());
+      const migrated = core.migrate ? core.migrate(parsed) : parsed;
+      const rolled = core.rolloverIfNewDay(migrated, today());
       return rolled;
     }
 
