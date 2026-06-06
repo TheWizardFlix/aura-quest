@@ -23,5 +23,18 @@
     return name;
   }
 
-  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank };
+  function dateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function addDays(yyyymmdd, n) {
+    const [y, m, d] = yyyymmdd.split('-').map(Number);
+    const date = new Date(y, m - 1, d + n);
+    return dateStr(date);
+  }
+
+  return { CORE_VERSION, DIFFICULTY_AURA, BRANCHES, PERFECT_DAY_BONUS, RANKS, resolveRank, dateStr, addDays };
 });
